@@ -1,3 +1,6 @@
 /bin
 /lib
+/share
 pyvenv.cfg
+*.ipynb*
+__pycache__/
