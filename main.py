@@ -1,20 +1,27 @@
 import sys
+import argparse
 
-from model import Suggestor, PhraseComporator
+from model import Suggestor, PhraseComporator, PhraseExtractor
 
-SIMILARITY_SCORE = 0.5
-WINDOW_SIZE = 1
+SIMILARITY_SCORE_THRESHOLD = 0.5
+WINDOW_SIZE = 2
 
-def run(text_file: str, phrases_file: str, output: str):
+arg_parser = argparse.ArgumentParser(
+    prog="Phrase",
+    description="lorem ipsum"
+)
+
+def run(text_file: str, phrases_file: str, output: str, model_name, phrase_method, threshold):
     with open(text_file) as f:
         text = f.read()
     with open(phrases_file) as f:
         phrases = f.readlines()
         phrases = [phrase.strip() for phrase in phrases]
     
-    comporator = PhraseComporator(PhraseComporator.WHALELOOPS_BERT, SIMILARITY_SCORE)
-    suggestor = Suggestor(comporator)
-    suggestions = suggestor.get_suggestions(text, phrases, window=WINDOW_SIZE)
+    comporator = PhraseComporator(model_name, threshold)
+    extractor = PhraseExtractor(phrase_method, window=WINDOW_SIZE)
+    suggestor = Suggestor(comporator, extractor)
+    suggestions = suggestor.get_suggestions(text, phrases)
     
     print(f"[INFO]: {len(suggestions)} suggestions were made")
     
@@ -22,16 +29,29 @@ def run(text_file: str, phrases_file: str, output: str):
         for original, suggestion, score in suggestions:
             f.write(f"{original} -> {suggestion}, {score}\n")
     
+    
+def filter_args(args):
+    if args.phrase_extraction_method not in set([ getattr(PhraseExtractor, x) for x in dir(PhraseExtractor) if not x.startswith("__")]):
+        raise Exception("not valid")
+    if args.model_name not in set([ getattr(PhraseComporator, x) for x in dir(PhraseComporator) if not x.startswith("__")]):
+        raise Exception("not valid")
+    
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
     
-    if len(args) != 3:
-        print("Arguments are not provided!")
-        print("E.g. python main.py {input_file} {phrases_file} {output_file}")
-        sys.exit(0)
+    arg_parser.add_argument("--input", type=str, required=True)
+    arg_parser.add_argument("--phrases", type=str, required=True)
+    arg_parser.add_argument("--output", type=str, required=True)
+    arg_parser.add_argument("--model_name", type=str, default=PhraseComporator.WHALELOOPS_BERT)
+    arg_parser.add_argument("--phrase_extraction_method", type=str, default=PhraseExtractor.RAKE)
+    arg_parser.add_argument("--threshold", type=float, default=SIMILARITY_SCORE_THRESHOLD)
+    args = arg_parser.parse_args()
+    filter_args(args)
         
-    text_filename = args[0]
-    phrases_filename = args[1]
-    output_filename = args[2]
-    run(text_filename, phrases_filename, output_filename)
+    text_filename = args.input
+    phrases_filename = args.phrases
+    output_filename = args.output
+    model_name = args.model_name
+    phrase_method = args.phrase_extraction_method
+    threshold = args.threshold
+    run(text_filename, phrases_filename, output_filename, model_name, phrase_method, threshold)

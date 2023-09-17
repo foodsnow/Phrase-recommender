@@ -2,6 +2,8 @@ from typing import List, Dict
 import string
 
 import nltk
+from rake_nltk import Rake
+import yake
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 from nltk.tokenize import sent_tokenize
@@ -17,24 +19,51 @@ punkts = set([*string.punctuation])
 
 class Suggestor():
     
-    BRUTE_PHRASE_EXTRACTION = "brute"
-    
-    def __init__(self, comporator, phrase_extraction_strategy: str = BRUTE_PHRASE_EXTRACTION) -> None:
+    def __init__(self, comporator, phrase_extractor) -> None:
         self.comporator = comporator
-        self.phrase_extraction = phrase_extraction_strategy
+        self.phrase_extractor = phrase_extractor
         
     
-    def get_suggestions(self, text: str, phrases: List[str], window: int = 1) -> Dict[str, str]:
+    def get_suggestions(self, text: str, phrases: List[str]) -> Dict[str, str]:
+        text_phrases = self.phrase_extractor.extract(text)
+        return self.comporator.compare_phrases_from_to(text_phrases, phrases)
+
+
+class PhraseExtractor():
+    
+    BRUTE = "brute"
+    RAKE = "rake"
+    YAKE = "yake"
+    
+    def __init__(self, strategy: str, window: int = 1) -> None:
+        self.strategy = strategy
+        self.window = window
         
-        if self.phrase_extraction == Suggestor.BRUTE_PHRASE_EXTRACTION:
-            text_phrases = self.brute_phrase_extraction(text, window=window)
+    
+    def extract(self, text: str):
+        if self.strategy == PhraseExtractor.RAKE:
+            return self.rake(text)
+        elif self.strategy == PhraseExtractor.YAKE:
+            return self.yake(text)
+        elif self.strategy == PhraseExtractor.BRUTE:
+            return self.brute(text, self.window)
         else:
             raise Exception("Phrase extraction strategy is not set")
-        
-        return self.comporator.compare_phrases(text_phrases, phrases)
     
     
-    def brute_phrase_extraction(self, text: str, window: int) -> List:
+    def rake(self, text: str) -> List[str]:
+        rake = Rake()
+        rake.extract_keywords_from_text(text)
+        return rake.get_ranked_phrases()
+    
+    
+    def yake(self, text: str) -> List[str]:
+        yake_kw = yake.KeywordExtractor()
+        keywords = yake_kw.extract_keywords(text)
+        return [phrase[0] for phrase in keywords]
+    
+    
+    def brute(self, text: str, window: int) -> List[str]:
         sentences = sent_tokenize(text)
         sentences = [nltk.word_tokenize(sentence) for sentence in sentences]
         sentences = [[word for word in sentence if word not in punkts] for sentence in sentences]
@@ -58,7 +87,7 @@ class PhraseComporator():
         self.threshold = threshold
     
     
-    def compare_phrases(self, phrases1: List[str], phrases2: List[str]) -> List:
+    def compare_phrases_from_to(self, phrases1: List[str], phrases2: List[str]) -> List:
         left_group = self.model.encode(phrases1)
         right_group = self.model.encode(phrases2)
         
