@@ -4,3 +4,4 @@
 pyvenv.cfg
 *.ipynb*
 __pycache__/
+etc/
